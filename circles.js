@@ -14,9 +14,11 @@
     // Basic state
     var stage,
         renderer,
-        score = 0,
-        difficulty = 0,
-        gameState = 'playing';
+        score,
+        difficulty,
+        gameState,
+        spawnTimeout,
+        checkInterval;
 
     var utils = {
         math: {
@@ -48,7 +50,6 @@
 
         circle.click = function() {
             increaseScore();
-            increaseDifficulty();
             removeCircle(circle);
         };
 
@@ -59,11 +60,14 @@
 
     function increaseScore() {
         score += 1;
-        console.log('Score: ' + score);
     }
 
     function increaseDifficulty() {
         difficulty += 1;
+    }
+
+    function setGameState(state, reason) {
+        gameState = state;
     }
 
     function removeCircle(circle) {
@@ -72,22 +76,45 @@
     }
 
     function initStage() {
-        console.log('Initializing Stage');        
         renderer = new PIXI.CanvasRenderer(stageWidth, stageHeight);
         document.body.appendChild(renderer.view);
         stage = new PIXI.Stage(0x000000, INTERACTIVE);
+    }
+
+    function startGame() {
+        $.each(circles, function(i, circle) {
+            stage.removeChild(circle);
+        });
+        circles = [];
+        score = 0;
+        difficulty = 1;
+        setGameState('playing');
         requestAnimationFrame(animate);
-        setInterval(function() {
+        checkInterval = setInterval(function() {
             var ctx = document.getElementsByTagName('canvas')[0].getContext('2d');
             var imgData = ctx.getImageData(STAGE_BUFFER,STAGE_BUFFER,stageWidth - STAGE_BUFFER,stageHeight - STAGE_BUFFER);
-            var count = 0;
+            var countBlack = 0, countTotal = 0;
             for (var i = 1; i < imgData.data.length; i +=4) {
+                countTotal += 1
                 if (imgData.data[i] === 0) {
-                    count += 1;
+                    countBlack += 1;
                 }
             } 
-            if (count <= 0) {
-                gameState = 'gameover';
+            if (countBlack === countTotal) {
+                // The screen is all black
+                $.each(circles, function(i, circle) {
+                    stage.removeChild(circle);
+                });
+                circles = [];
+            }
+            if (countBlack <= 0) {
+                setGameState('gameover', 'no black');
+            }
+            if (circles.length < difficulty) {
+                increaseDifficulty();
+            }
+            if (circles.length > 100) {
+                setGameState('gameover', 'too many circles');
             }
         }, 2000);
     }
@@ -96,7 +123,7 @@
         for (var i = 0; i < num; i++) {
             drawCircle();
         }
-        setTimeout(function() {
+        spawnTimeout = setTimeout(function() {
             initSpawn(Math.ceil(difficulty / 2));
         }, utils.math.randomInt(2000, Math.max(2000, 10000 - (difficulty * 1000))));
     }
@@ -114,6 +141,8 @@
             requestAnimationFrame(animate);
         } else {
             $('.score').text('Score: ' + score).removeClass('hidden');
+            clearTimeout(spawnTimeout);
+            clearInterval(checkInterval);
         }
     }
 
@@ -121,7 +150,12 @@
 
     $(function() {
         initStage();
-        initSpawn(1);
+
+        $('.start, .score').on('click', function() {
+            $('.start, .score').addClass('hidden');
+            startGame();
+            initSpawn(1);            
+        })
     });
 
 })(jQuery, window, document);
